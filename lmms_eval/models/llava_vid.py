@@ -400,7 +400,30 @@ class LlavaVid(lmms):
             for j in i:
                 new_list.append(j)
         return new_list
-
+    
+    def split_input_ids_by_image_token(self, input_ids, image_token_index, save_path=None):
+        """
+        Split the input IDs by finding the image token index.
+        
+        :param input_ids: torch.Tensor
+            The input IDs tensor.
+        :param image_token_index: int
+            The index of the image token.
+        :return: tuple
+            A tuple containing two tensors: the part before the image token and the part after the image token.
+        """
+        assert input_ids.shape[0] == 1, "The input IDs should have a batch size of 1."
+        input_ids = input_ids.squeeze(0)
+        image_token_indices = torch.where(input_ids == image_token_index)[0]
+        assert len(image_token_indices) == 1, "There should be exactly one image token in the input IDs."
+        image_token_pos = image_token_indices[0]
+        before_image_length = image_token_pos
+        after_image_length = input_ids.shape[0] - image_token_pos - 1
+        save_path = "lmms_eval/output/llava_vid_test_split_index.txt"
+        with open(save_path, "a") as f:
+            f.write(f"Before image length: {before_image_length}, After image length: {after_image_length}\n")
+        return
+    
     def generate_until(self, requests) -> List[str]:
         res = []
         pbar = tqdm(total=len(requests), disable=(self.rank != 0), desc="Model Responding")
@@ -482,6 +505,9 @@ class LlavaVid(lmms):
             prompt = conv.get_prompt()
 
             input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).cuda()
+
+            self.split_input_ids_by_image_token(input_ids, IMAGE_TOKEN_INDEX)
+
             pad_token_ids = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
             if "llama_3" in self.conv_template:
                 pad_token_ids = 0  # lmms-lab/llama3-llava-8b is trained on this pad token id. You may need to customize this for other models.
