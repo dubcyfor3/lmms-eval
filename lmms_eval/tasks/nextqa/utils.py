@@ -23,6 +23,9 @@ with open(Path(__file__).parent / "_default_template_yaml", "r") as f:
 
 if config["metadata"]["load_package"]:
     try:
+        import nltk
+        nltk.download('averaged_perceptron_tagger_eng', quiet=True)
+        nltk.download('punkt_tab', quiet=True)
         from pywsd.utils import lemmatize_sentence
     except ImportError:
         eval_logger.debug("pywsd not installed. Please install pywsd to use this module. You can install it by running 'pip install pywsd'")

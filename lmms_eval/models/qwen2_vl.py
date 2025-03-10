@@ -37,7 +37,7 @@ class Qwen2_VL(lmms):
         device_map: Optional[str] = "cuda",
         batch_size: Optional[Union[int, str]] = 1,
         use_cache=True,
-        use_flash_attention_2: Optional[bool] = False,
+        use_flash_attention_2: Optional[bool] = True,
         max_pixels: int = 12845056,
         min_pixels: int = 3136,
         max_num_frames: int = 32,
