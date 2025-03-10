@@ -245,6 +245,7 @@ def simple_evaluate(
             fewshot_as_multiturn=fewshot_as_multiturn,
         )
 
+    print(lm)
     results = evaluate(
         lm=lm,
         task_dict=task_dict,
@@ -305,6 +306,22 @@ def simple_evaluate(
 decontaminate_suffix = "_decontaminate"
 
 
+def register_hooks(lm):
+    activations = {}
+
+    def get_activation(name):
+        def hook(module, input):
+            assert len(input) == 1
+            activations[name].append(input[0].detach().cpu())
+        return hook
+
+    for name, module in lm.named_modules():
+        if name.startswith("model.layers"):
+            if isinstance(module, torch.nn.Linear):
+                module.register_forward_pre_hook(get_activation(name))
+                activations[name] = []
+    return activations
+
 @positional_deprecated
 def evaluate(
     lm: "LM",
@@ -344,7 +361,9 @@ def evaluate(
     :return
         Dictionary of results
     """
-
+    if hasattr(cli_args, "sparse_hooks"):
+        if cli_args.sparse_hooks:
+            activations = register_hooks(lm.model)
     # stores the final result for each task, for each metric/filter pair.
     results = collections.defaultdict(dict)
     # Tracks each task's version.
@@ -377,6 +396,7 @@ def evaluate(
         if not all("bypass" not in getattr(task_output.task, "_metric_fn_list", {}).keys() for task_output in eval_tasks):
             raise ValueError("log_samples must be True for 'bypass' metric-only tasks")
 
+    
     for task_output in eval_tasks:
         task: Task = task_output.task
         task_name = task_output.task_name
@@ -640,6 +660,12 @@ def evaluate(
 
     if hasattr(lm, "accelerator"):
         lm.accelerator.wait_for_everyone()
+
+    # save activations
+    if hasattr(lm, "rank") and lm.rank == 0:
+        if hasattr(cli_args, "sparse_hooks"):
+            if cli_args.sparse_hooks:
+                torch.save(activations, "lmms_eval/data/llava_vid_videomme_act.pt")
 
     return results_dict
 
